@@ -1,0 +1,6 @@
+pyspark==3.5.1
+boto3==1.28.85
+python-dotenv==1.0.0
+pandas==2.0.3
+jupyter==1.0.0
+jupyterlab==4.0.7
