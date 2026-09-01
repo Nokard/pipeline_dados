@@ -63,8 +63,8 @@ clean-volumes:
 	@echo "✅ Volumes deletados"
 
 stop-all:
-	docker stop spark localstack 2>/dev/null || true
-	docker rm spark localstack 2>/dev/null || true
+	docker stop spark localstack airflow 2>/dev/null || true
+	docker rm spark localstack airflow 2>/dev/null || true
 	@echo "✅ Containers parados e removidos"
 
 clean:

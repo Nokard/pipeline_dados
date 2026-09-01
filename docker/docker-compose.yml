@@ -34,7 +34,9 @@ services:
     command: -c "terraform init -upgrade && terraform apply -auto-approve"
 
   spark:
-    image: apache/spark:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
     container_name: spark
     depends_on:
       - localstack
@@ -60,8 +62,7 @@ services:
       context: ../airflow
       dockerfile: Dockerfile
     container_name: airflow
-    depends_on:
-      - spark
+    user: root
     environment:
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
@@ -78,8 +79,6 @@ services:
     profiles: ["orchestration", "full"]
     networks:
       - localstack-network
-    command: |
-      bash -c "airflow db init && airflow webserver -p 8080"
 
 networks:
   localstack-network:

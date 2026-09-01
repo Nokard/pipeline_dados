@@ -6,13 +6,12 @@ import sys
 spark = SparkSession.builder \
     .appName(f"{SPARK_APP_NAME}-bronze") \
     .master(SPARK_MASTER) \
-    .config("spark.hadoop.fs.s3a.endpoint", "http://localhost:4566") \
+    .config("spark.hadoop.fs.s3a.endpoint", "http://localstack:4566") \
     .config("spark.hadoop.fs.s3a.access.key", "test") \
     .config("spark.hadoop.fs.s3a.secret.key", "test") \
     .config("spark.hadoop.fs.s3a.path.style.access", "true") \
     .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
     .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-    .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.2,com.amazonaws:aws-java-sdk-bundle:1.12.261") \
     .getOrCreate()
 
 try:
@@ -21,7 +20,7 @@ try:
     print("=" * 60)
 
     # Lê dados do CSV local
-    df_bronze = spark.read.option("header", "true").csv("data/dados.csv")
+    df_bronze = spark.read.option("header", "true").csv("/opt/data/dados.csv")
 
     print(f"\n✅ Dados carregados: {df_bronze.count()} registros")
     df_bronze.show(5)

@@ -1,0 +1,10 @@
+FROM apache/spark:latest
+
+# Baixa e adiciona hadoop-aws jars ao Spark
+RUN mkdir -p /opt/spark/jars-extra && \
+    cd /opt/spark/jars-extra && \
+    curl -L -o hadoop-aws-3.3.2.jar https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.2/hadoop-aws-3.3.2.jar && \
+    curl -L -o aws-java-sdk-bundle-1.12.261.jar https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.261/aws-java-sdk-bundle-1.12.261.jar && \
+    cp *.jar /opt/spark/jars/
+
+ENV SPARK_EXTRA_CLASSPATH=/opt/spark/jars/*

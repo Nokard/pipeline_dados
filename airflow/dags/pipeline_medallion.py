@@ -13,17 +13,17 @@ with DAG(
     'medallion_pipeline',
     default_args=default_args,
     description='Medallion Architecture Pipeline: Bronze → Silver → Gold',
-    schedule_interval='0 2 * * *',  # Roda todo dia às 2am
+    schedule='0 2 * * *',  # Roda todo dia às 2am
     start_date=datetime(2024, 1, 1),
     catchup=False,
-    tags=['medallion', 'data-pipeline'],
+    tags=['medallion', 'data-pipeline']
 ) as dag:
 
     # Task 1: Bronze - Extração de dados brutos
     task_bronze = BashOperator(
         task_id='extract_bronze',
         bash_command='''
-            docker exec spark spark-submit \
+            docker exec spark /opt/spark/bin/spark-submit \
                 --master spark://spark:7077 \
                 --deploy-mode client \
                 /opt/spark-jobs/bronze.py
@@ -35,7 +35,7 @@ with DAG(
     task_silver = BashOperator(
         task_id='transform_silver',
         bash_command='''
-            docker exec spark spark-submit \
+            docker exec spark /opt/spark/bin/spark-submit \
                 --master spark://spark:7077 \
                 --deploy-mode client \
                 /opt/spark-jobs/silver.py
@@ -47,7 +47,7 @@ with DAG(
     task_gold = BashOperator(
         task_id='transform_gold',
         bash_command='''
-            docker exec spark spark-submit \
+            docker exec spark /opt/spark/bin/spark-submit \
                 --master spark://spark:7077 \
                 --deploy-mode client \
                 /opt/spark-jobs/gold.py
