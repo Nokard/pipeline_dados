@@ -345,6 +345,112 @@ Dúvidas? Verifique:
 3. S3: `docker exec localstack aws s3 ls --endpoint-url=http://localhost:4566`
 4. Terraform: `docker logs terraform` (sucesso?)
 
+## 🔄 Usando Airflow (Orquestração)
+
+### O que mudou com Airflow
+
+Ao invés de rodar tudo manualmente, Airflow **orquestra e agenda** o pipeline:
+
+- **Antes**: `make run-job` (manual, tudo junto)
+- **Agora**: DAG Airflow (automático, diário, tolerância a falhas)
+
+### Estrutura dos Jobs
+
+Os 3 jobs foram separados:
+
+```
+jobs/
+├── bronze.py  → Extrai dados brutos
+├── silver.py  → Limpa e valida
+└── gold.py    → Transforma para análise
+```
+
+Cada um pode rodar **independente ou orquestrado**.
+
+### PASSO 1️⃣ - Subir Airflow
+
+```bash
+make up-airflow
+```
+
+Acessa UI: **http://localhost:8081**
+
+### PASSO 2️⃣ - Triggar a DAG
+
+1. Vá em: http://localhost:8081/home
+2. Procure a DAG `medallion_pipeline`
+3. Clique no ▶️ (play) pra rodar
+
+**Ou via CLI:**
+```bash
+docker exec airflow airflow dags trigger medallion_pipeline
+```
+
+### PASSO 3️⃣ - Ver execução em tempo real
+
+Na UI Airflow, você vê:
+- ✅ Cada task (Bronze → Silver → Gold)
+- ⏱️ Tempo de execução
+- ✋ Se falhou, qual task
+- 📊 Logs detalhados
+
+### Rodando jobs individualmente
+
+Mesmo com Airflow, pode rodar jobs isolados:
+
+```bash
+make run-bronze   # Só Bronze
+make run-silver   # Só Silver
+make run-gold     # Só Gold
+```
+
+### Agendamento automático
+
+A DAG está configurada para rodar **todo dia às 2:00 AM**:
+
+```python
+schedule_interval='0 2 * * *'  # Cron: 2am todo dia
+```
+
+**Para mudar**, edite `airflow/dags/pipeline_medallion.py`:
+
+```python
+schedule_interval='0 */6 * * *'  # A cada 6 horas
+schedule_interval='@hourly'       # A cada hora
+schedule_interval=None            # Manual (não agenda)
+```
+
+### DAG Airflow - Fluxo Visual
+
+```
+Bronze (extrai)
+    ↓
+Silver (limpa)
+    ↓
+Gold (transforma)
+```
+
+**Tolerância a falhas:**
+- Se Bronze falhar → Silver/Gold não rodam
+- Se Silver falha 2x → para e avisa
+
+### Logs Airflow
+
+```bash
+make logs-airflow
+```
+
+Ou via UI: clique na task → "Log"
+
 ---
 
-**Criado com ❤️ para aprender PySpark + Arquitetura de Dados**
+**Resumo:**
+- ✅ Jobs separados e independentes
+- ✅ Orquestração automática com Airflow
+- ✅ Agendamento automático (diário às 2am)
+- ✅ Retry e tratamento de erros
+- ✅ UI pra monitorar
+
+---
+
+**Criado com ❤️ para aprender PySpark + Arquitetura de Dados + Orquestração**
