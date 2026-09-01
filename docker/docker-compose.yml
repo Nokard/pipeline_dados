@@ -1,0 +1,60 @@
+services:
+  localstack:
+    image: localstack/localstack
+    container_name: localstack
+    ports:
+      - "4566:4566"        # porta principal (todos os serviços passam por aqui)
+      - "4510-4559:4510-4559"  # range de portas pra alguns serviços específicos (opcional)
+    environment:
+      - SERVICES=s3,dynamodb
+      - DEBUG=1
+      - PERSISTENCE=1       # mantém os dados salvos entre reinícios do container
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+    volumes:
+      - "../localstack-data:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"  # necessário se for usar Lambda depois
+    profiles: ["infra", "full"]
+    networks:
+      - localstack-network
+
+  terraform:
+    image: hashicorp/terraform:latest
+    container_name: terraform
+    depends_on:
+      - localstack
+    working_dir: /terraform
+    volumes:
+      - "../terraform:/terraform"
+    profiles: ["infra", "full"]
+    networks:
+      - localstack-network
+    environment:
+      - TF_VAR_localstack_endpoint=http://localstack:4566
+    command: |
+      sh -c "terraform init -upgrade && terraform apply -auto-approve"
+
+  spark:
+    image: apache/spark:latest
+    container_name: spark
+    depends_on:
+      - localstack
+    environment:
+      - SPARK_MODE=master
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    ports:
+      - "8080:8080"  # Spark UI
+      - "7077:7077"  # Master port
+      - "4040:4040"  # Application UI
+    volumes:
+      - "../jobs:/opt/spark-jobs"
+      - "../data:/opt/data"
+    profiles: ["processing", "full"]
+    networks:
+      - localstack-network
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+
+networks:
+  localstack-network:
+    driver: bridge
