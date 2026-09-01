@@ -55,6 +55,32 @@ services:
       - localstack-network
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
 
+  airflow:
+    build:
+      context: ../airflow
+      dockerfile: Dockerfile
+    container_name: airflow
+    depends_on:
+      - spark
+    environment:
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS=false
+      - AIRFLOW__CORE__LOAD_DEFAULT_VARIABLES=false
+    ports:
+      - "8081:8080"  # Airflow UI
+    volumes:
+      - "../airflow/dags:/opt/airflow/dags"
+      - "../jobs:/opt/spark-jobs"
+      - "/var/run/docker.sock:/var/run/docker.sock"  # Acesso Docker
+    profiles: ["orchestration", "full"]
+    networks:
+      - localstack-network
+    command: |
+      bash -c "airflow db init && airflow webserver -p 8080"
+
 networks:
   localstack-network:
     driver: bridge

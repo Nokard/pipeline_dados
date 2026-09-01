@@ -1,4 +1,4 @@
-.PHONY: up down up-infra seed run-job logs clean clean-volumes stop-all tf-init tf-plan tf-apply tf-destroy
+.PHONY: up down up-infra up-airflow seed run-job run-bronze run-silver run-gold logs logs-airflow logs-localstack clean clean-volumes stop-all tf-plan tf-apply tf-destroy
 
 up:
 	docker compose --env-file .env --profile full -f docker/docker-compose.yml up -d
@@ -26,8 +26,34 @@ run-job:
 		--master spark://spark:7077 \
 		--deploy-mode client \
 		/opt/spark-jobs/main.py
+
+run-bronze:
+	docker exec -it spark spark-submit \
+		--master spark://spark:7077 \
+		--deploy-mode client \
+		/opt/spark-jobs/bronze.py
+
+run-silver:
+	docker exec -it spark spark-submit \
+		--master spark://spark:7077 \
+		--deploy-mode client \
+		/opt/spark-jobs/silver.py
+
+run-gold:
+	docker exec -it spark spark-submit \
+		--master spark://spark:7077 \
+		--deploy-mode client \
+		/opt/spark-jobs/gold.py
+
+up-airflow:
+	docker compose --env-file .env --profile orchestration -f docker/docker-compose.yml up -d airflow
+	@echo "✅ Airflow iniciado (UI: http://localhost:8081)"
+
 logs:
 	docker compose -f docker/docker-compose.yml logs -f spark
+
+logs-airflow:
+	docker compose -f docker/docker-compose.yml logs -f airflow
 
 logs-localstack:
 	docker compose -f docker/docker-compose.yml logs -f localstack
