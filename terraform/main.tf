@@ -11,7 +11,9 @@ terraform {
 provider "aws" {
   region = var.aws_region
 
-  endpoint = var.localstack_endpoint
+  endpoints {
+    s3 = var.localstack_endpoint
+  }
 
   access_key                  = var.aws_access_key
   secret_key                  = var.aws_secret_key
