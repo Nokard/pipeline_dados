@@ -1,177 +1,350 @@
-# 📊 Medallion Architecture Pipeline
+# 📊 Medallion Architecture Pipeline com PySpark
 
-Arquitetura completa de dados com **PySpark**, **LocalStack** (AWS emulado), **Terraform** e **Jupyter** pra exploração interativa.
+Pipeline de dados completo com arquitetura **Medallion** (Bronze → Silver → Gold), usando **PySpark**, **LocalStack** (AWS emulado) e **Terraform** para provisionamento de infraestrutura.
 
 ## 🏗️ Arquitetura
 
 ```
-Bronze (Raw) → Silver (Cleaned) → Gold (Analysis-Ready)
+┌─────────────────────────────────────────────────┐
+│  CAMADAS DO MEDALLION ARCHITECTURE              │
+├─────────────────────────────────────────────────┤
+│  🟫 BRONZE  → Dados brutos (raw)                │
+│  🟪 SILVER  → Dados limpos e validados          │
+│  🟨 GOLD    → Dados prontos para análise        │
+└─────────────────────────────────────────────────┘
 ```
-
-- **Bronze**: Dados brutos do source
-- **Silver**: Dados limpos, validados, sem duplicatas
-- **Gold**: Dados transformados, prontos para análise
 
 ## 📋 Pré-requisitos
 
-- Docker e Docker Compose
-- Python 3.8+ com venv
-- Git configurado
+✅ **Obrigatório:**
+- Docker + Docker Compose (instalado)
+- Git (para clonar o repo)
 
-## 🚀 Quick Start
+✅ **Opcional:**
+- Python 3.8+ (para desenvolvimento local)
+- Jupyter (para exploração interativa)
 
-### 1. Suba infraestrutura + Terraform
+## 🚀 Como Executar (Passo a Passo)
+
+### PASSO 1️⃣ - Clonar o projeto
+
+```bash
+git clone git@github.com:Nokard/pipeline_dados.git
+cd pipeline_dados
+```
+
+### PASSO 2️⃣ - Subir infraestrutura + criar recursos AWS
 
 ```bash
 make up-infra
 ```
 
-Isso automaticamente:
-- ✅ Sobe LocalStack (S3 + DynamoDB na porta 4566)
-- ✅ Sobe Spark Master (UI na porta 8080)
-- ✅ Roda Terraform (cria bucket `datalake-teste` + bronze/silver/gold)
+**O que acontece:**
+- ✅ Sobe **LocalStack** (S3 + DynamoDB emulados) na porta `4566`
+- ✅ Sobe **Spark Master** (Spark UI) na porta `8080`
+- ✅ Executa **Terraform** (cria bucket `datalake-teste` + pastas bronze/silver/gold)
+- ✅ Aguarda ~15 segundos enquanto Terraform cria infraestrutura
 
-### 2. Popula dados de teste
+**Output esperado:**
+```
+🚀 Iniciando infraestrutura completa (Docker + Terraform)...
+⏳ Aguardando LocalStack ficar pronto...
+📦 Inicializando Terraform...
+🏗️ Criando infraestrutura S3...
+✅ Infraestrutura completa criada!
+```
+
+**Verificar se funcionou:**
+```bash
+docker ps
+# Deve listar: localstack, spark, terraform
+```
+
+### PASSO 3️⃣ - Carregar dados de teste
 
 ```bash
 make seed
 ```
 
-Carrega `data/dados.csv` para S3 Bronze layer.
+**O que acontece:**
+- Cria bucket S3 em LocalStack
+- Faz upload do arquivo `data/dados.csv` para `s3://datalake-teste/bronze/dados.csv`
 
-### 3. Executa pipeline
+**Output esperado:**
+```
+🚀 Preparando dados para teste...
+✅ Bucket 'datalake-teste' já existe
+📖 Lendo dados.csv...
+✅ Dados salvos em: s3a://datalake-teste/bronze/dados.csv
+   Registros: 10
+
+📂 Conteúdo do bucket 'datalake-teste':
+  - bronze/dados.csv
+✅ Pronto! Você pode rodar o pipeline agora.
+```
+
+### PASSO 4️⃣ - Executar pipeline PySpark
 
 ```bash
 make run-job
 ```
 
-Processa dados através das 3 camadas (Bronze → Silver → Gold).
+**O que acontece:**
+- Lê dados brutos do **Bronze** (`dados.csv`)
+- Limpa, valida e deduplica no **Silver** (remove nulos, filtra valores > 0)
+- Transforma e agregaa no **Gold** (produtos premium + resumo por categoria)
+- Salva resultados em S3 em cada camada
 
-### 4. Explore dados interativamente
+**Output esperado:**
+```
+============================================================
+🏗️  MEDALLION ARCHITECTURE PIPELINE
+============================================================
+
+📦 BRONZE LAYER: Lendo dados brutos...
+✅ Bronze: 10 registros
++---+---------+-----+-----------+
+| id|     nome|valor|  categoria|
++---+---------+-----+-----------+
+|  1|Produto A|   50|Eletrônicos|
+...
+
+🔧 SILVER LAYER: Limpeza e validação...
+✅ Silver: 10 registros (após limpeza)
+💾 Salvo em: s3a://datalake-teste/silver/dados
+
+✨ GOLD LAYER: Transformações para análise...
+✅ Gold (Premium): 5 produtos
++---+---------+-----+-----------+
+| id|     nome|valor|  categoria|
++---+---------+-----+-----------+
+|  7|Produto G|  250|     Livros|
+|  4|Produto D|  200|     Livros|
+...
+
+📊 Agregação por categoria...
+✅ Gold (Categoria):
++-----------+-----------+------------+
+|  categoria|valor_total|qtd_produtos|
++-----------+-----------+------------+
+|     Livros|        450|           3|
+|Eletrônicos|        395|           4|
+...
+
+============================================================
+✅ PIPELINE CONCLUÍDO COM SUCESSO!
+============================================================
+```
+
+### PASSO 5️⃣ (Opcional) - Explorar dados com Jupyter
 
 ```bash
 jupyter notebook jobs/jupyter/analise.ipynb
 ```
 
-Notebook já está configurado pra conectar ao LocalStack + S3a.
+**O que faz:**
+- Abre notebook interativo em `http://localhost:8888`
+- Já está configurado para conectar ao LocalStack
+- Permite ler/escrever dados nas camadas Bronze/Silver/Gold
 
-## 📁 Estrutura
+## 📊 Verificar dados em S3
 
-```
-projeto/
-├── docker/
-│   └── docker-compose.yml        # LocalStack, Spark, Terraform
-├── terraform/
-│   ├── main.tf                   # Bucket S3 + camadas (bronze/silver/gold)
-│   ├── variables.tf              # Configurações
-│   └── terraform.tfvars          # Valores (localstack endpoint, etc)
-├── jobs/
-│   ├── main.py                   # Pipeline Medallion (PySpark)
-│   └── jupyter/analise.ipynb     # Exploração interativa
-├── scripts/
-│   └── seed_data.py              # Popula S3 com dados de teste
-├── config.py                      # Configurações centralizadas
-├── data/
-│   └── dados.csv                 # Dados de teste
-├── .env                          # Token LocalStack
-└── Makefile                      # Comandos úteis
+Se quiser listar os arquivos salvos:
+
+```bash
+# Listar conteúdo do bucket
+docker exec localstack aws s3 ls s3://datalake-teste --recursive \
+  --endpoint-url=http://localhost:4566
+
+# Ver arquivos específicos
+docker exec localstack aws s3 ls s3://datalake-teste/gold/ --recursive \
+  --endpoint-url=http://localhost:4566
 ```
 
-## 🛠️ Comandos
+## 🛠️ Outros Comandos Úteis
 
 | Comando | O que faz |
 |---------|-----------|
-| `make up-infra` | **NOVO**: Sobe Docker + cria infra com Terraform |
-| `make up` | Sobe só containers (LocalStack + Spark) |
-| `make down` | Para containers |
-| `make seed` | Popula dados no S3 |
-| `make run-job` | Executa pipeline PySpark |
-| `make logs` | Logs do Spark |
-| `make logs-localstack` | Logs do LocalStack |
-| `make clean` | Remove tudo (containers + volumes + dados) |
+| `make up` | Sobe só containers (sem Terraform) |
+| `make down` | Para os containers |
+| `make logs` | Mostra logs do Spark |
+| `make logs-localstack` | Mostra logs do LocalStack |
+| `make clean` | Remove TUDO (containers + volumes + dados) |
+| `make clean-volumes` | Remove só volumes (deixa containers) |
+| `make stop-all` | Para todos os containers |
 | `make tf-plan` | Mostra plano Terraform |
 | `make tf-apply` | Aplica Terraform manualmente |
-| `make tf-destroy` | Remove infraestrutura |
+| `make tf-destroy` | Remove infraestrutura S3 |
 
-## 🌐 Acesso
+## 🌐 Acesso às UIs
 
-- **Spark Master UI**: http://localhost:8080
-- **Spark Application UI**: http://localhost:4040 (durante execução)
-- **LocalStack**: http://localhost:4566 (API)
-- **Jupyter**: http://localhost:8888 (após rodar `jupyter notebook`)
+Durante a execução, acesse:
 
-## 🧪 Exemplo de uso
+- **Spark Master Dashboard**: http://localhost:8080
+  - Mostra status do Spark Master
+  - Lista workers e jobs executados
 
-```bash
-# Setup completo
-make up-infra       # Sobe infra
-make seed           # Carrega dados
-make run-job        # Executa pipeline
+- **Spark Application UI**: http://localhost:4040
+  - Aparece durante execução de `make run-job`
+  - Mostra stages, tasks, métricas
 
-# Explorar dados
-jupyter notebook jobs/jupyter/analise.ipynb
+- **Jupyter**: http://localhost:8888
+  - Acesso ao notebook de exploração
+  - Token vem no terminal quando faz `jupyter notebook`
+
+## 🔧 Configuração (se precisar customizar)
+
+### Mudar nome do bucket
+
+Edite em 3 lugares:
+
+1. **`terraform/terraform.tfvars`:**
+```hcl
+bucket_name = "seu-novo-bucket"
 ```
 
-## 🔧 Configuração
-
-Edite `config.py` para mudar:
-- `S3_BUCKET`: Nome do bucket
-- `SPARK_MASTER`: URL do Spark Master
-- Paths das camadas (Bronze, Silver, Gold)
-
-Edite `terraform/terraform.tfvars` para mudar:
-- `bucket_name`: Nome do bucket S3
-- `localstack_endpoint`: URL do LocalStack
-- `environment`: Nome do ambiente
-
-## 📝 Desenvolvimento
-
-### Adicionar novo job Spark
-
-1. Crie arquivo em `jobs/seu_job.py`
-2. Use as constantes de `config.py`
-3. Execute via Docker:
-
-```bash
-docker exec -it spark spark-submit /opt/spark-jobs/seu_job.py
+2. **`config.py`:**
+```python
+S3_BUCKET = "seu-novo-bucket"
 ```
 
-### Testar localmente com Jupyter
+3. **`scripts/seed_data.py`:**
+```python
+BUCKET_NAME = 'seu-novo-bucket'
+```
 
-Use `jobs/jupyter/analise.ipynb` como template. Já tem:
-- Configuração S3a + LocalStack
-- Leitura de dados Bronze
-- Transformações Silver/Gold
+### Mudar dados de teste
+
+Edite `data/dados.csv` com seus próprios dados.
+
+Depois rode:
+```bash
+make clean
+make up-infra
+make seed
+make run-job
+```
+
+## 📁 Estrutura do Projeto
+
+```
+pipeline_dados/
+├── README.md                           # Este arquivo
+├── Makefile                            # Comandos (make up-infra, make seed, etc)
+├── config.py                           # Configurações centralizadas
+│
+├── docker/
+│   └── docker-compose.yml              # Define: LocalStack, Spark, Terraform
+│
+├── terraform/
+│   ├── main.tf                         # Cria bucket S3 + camadas
+│   ├── variables.tf                    # Variáveis Terraform
+│   ├── terraform.tfvars                # Valores (endpoint, bucket name)
+│   └── outputs.tf                      # Saídas (paths do S3)
+│
+├── jobs/
+│   ├── main.py                         # Pipeline Medallion (Bronze→Silver→Gold)
+│   └── jupyter/
+│       └── analise.ipynb               # Notebook para exploração
+│
+├── scripts/
+│   └── seed_data.py                    # Popula bucket com dados.csv
+│
+├── data/
+│   └── dados.csv                       # Dados de teste
+│
+├── .env                                # Token LocalStack
+├── .gitignore                          # Arquivos ignorados no Git
+└── LICENSE                             # Licença do projeto
+```
 
 ## 🐛 Troubleshooting
 
-### Erro "terraform: not found"
-Não precisa instalar! Terraform roda dentro do Docker agora.
+### ❌ "Erro: Connection refused ao rodar make seed"
 
-### Bucket já existe
-Rode `make clean` pra limpar tudo, depois `make up-infra` de novo.
+**Causa:** LocalStack não está pronto ainda
 
-### PySpark não consegue ler S3
-- Verifique que LocalStack tá rodando: `docker ps`
-- Rode `make seed` pra criar bucket
-- Check logs: `make logs`
+**Solução:**
+```bash
+# Aguarde mais um pouco
+sleep 10
+make seed
 
-### Jupyter não conecta
-- Verifique que LocalStack tá saudável: `docker exec localstack aws s3 ls --endpoint-url=http://localhost:4566`
-- Reinicie kernel do Jupyter
+# Ou verifique se containers estão rodando
+docker ps
+```
 
-## 📚 Stack
+### ❌ "Erro: Bucket 'datalake-teste' já existe"
 
-- **PySpark 3.5.1** — processamento distribuído
-- **LocalStack 3.x** — emulação AWS local
-- **Terraform 1.7+** — IaC (em Docker)
-- **Docker Compose** — orquestração
-- **Jupyter** — exploração interativa
-- **boto3** — client AWS/S3
+**Causa:** Estava executado anteriormente
 
-## 🚀 Próximos passos
+**Solução:**
+```bash
+# Limpa tudo
+make clean
 
-- [ ] Adicionar mais jobs Spark
-- [ ] Criar jobs agendados (Airflow, etc)
+# Recria do zero
+make up-infra
+make seed
+make run-job
+```
+
+### ❌ "Erro: PySpark não consegue ler S3"
+
+**Causa:** Problema de conexão LocalStack ↔ Spark
+
+**Solução:**
+```bash
+# 1. Verifique se LocalStack tá saudável
+docker exec localstack aws s3 ls --endpoint-url=http://localhost:4566
+
+# 2. Verifique logs
+make logs
+
+# 3. Reinicie tudo
+make clean
+make up-infra
+make seed
+```
+
+### ❌ "Erro: Jupyter não conecta em LocalStack"
+
+**Causa:** Kernel do notebook precisa ser reiniciado
+
+**Solução:**
+- No Jupyter, vá em `Kernel` → `Restart`
+- Ou feche e reabra a aba do notebook
+
+## 📚 Stack Tecnológico
+
+| Tecnologia | Versão | Função |
+|-----------|--------|--------|
+| **PySpark** | 3.5.1 | Processamento distribuído de dados |
+| **LocalStack** | 3.x | Emulação local de AWS (S3, DynamoDB) |
+| **Terraform** | 1.7+ | Infraestrutura como Código (IaC) |
+| **Docker** | Latest | Containerização |
+| **Python** | 3.13 | Scripting |
+| **Jupyter** | Latest | Exploração interativa |
+
+## 🚀 Próximos Passos
+
+Depois de entender o pipeline:
+
+- [ ] Adicionar mais transformações em `jobs/main.py`
+- [ ] Criar novos jobs Spark (ex: análise de tendências)
+- [ ] Integrar com Airflow para orquestração
+- [ ] Deploy em AWS real (trocar LocalStack)
 - [ ] Adicionar testes automatizados
-- [ ] Deploy em ambiente real (AWS)
+- [ ] Criar alertas/monitoramento
+
+## 📞 Suporte
+
+Dúvidas? Verifique:
+1. Logs: `make logs` ou `make logs-localstack`
+2. Docker: `docker ps` (containers rodando?)
+3. S3: `docker exec localstack aws s3 ls --endpoint-url=http://localhost:4566`
+4. Terraform: `docker logs terraform` (sucesso?)
+
+---
+
+**Criado com ❤️ para aprender PySpark + Arquitetura de Dados**
