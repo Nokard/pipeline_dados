@@ -30,8 +30,8 @@ services:
       - localstack-network
     environment:
       - TF_VAR_localstack_endpoint=http://localstack:4566
-    command: |
-      sh -c "terraform init -upgrade && terraform apply -auto-approve"
+    entrypoint: /bin/sh
+    command: -c "terraform init -upgrade && terraform apply -auto-approve"
 
   spark:
     image: apache/spark:latest
