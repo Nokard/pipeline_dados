@@ -115,13 +115,13 @@ scripts/seed_data.py              → simula a origem entregando os CSVs
 ```
 
 ---
-##  Primeiro Exercicio - Entregável
+## 📂 Primeiro Exercicio - Entregável
 | O que foi pedido | Onde está |
 |---|---|
 | 2 querys em SQL. | `jobs/query_final/primeiro_exercicio.ipynb` |
 
 
-## Segundo Exercicio - Entregáveis
+## 📂 Segundo Exercicio - Entregáveis
 
 | O que foi pedido | Onde está |
 |---|---|
