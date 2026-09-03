@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
-import boto3
-from pyspark.sql import SparkSession
+"""Deposita os CSVs de eventos (CDC) na camada raw do LocalStack.
+
+O seed simula a origem entregando os arquivos no lake: nenhuma transformação
+acontece aqui. Tipagem, qualidade e particionamento são trabalho do bronze.
+"""
+import sys
 from pathlib import Path
 
-# Configuração do S3 local (LocalStack)
+import boto3
+
+sys.path.insert(0, str(Path(__file__).parent.parent / 'jobs' / 'config'))
+from config import S3_BUCKET, FONTES
+
+DATA_DIR = Path(__file__).parent.parent / 'data' / 'events'
+
 s3_client = boto3.client(
     's3',
     endpoint_url='http://localhost:4566',
@@ -12,77 +22,59 @@ s3_client = boto3.client(
     region_name='us-east-1'
 )
 
-BUCKET_NAME = 'datalake-teste'
-DATA_DIR = Path(__file__).parent.parent / 'data'
-
-# Inicializa Spark para converter para Parquet
-spark = SparkSession.builder \
-    .appName("seed-data") \
-    .master("local[*]") \
-    .config("spark.hadoop.fs.s3a.endpoint", "http://localhost:4566") \
-    .config("spark.hadoop.fs.s3a.access.key", "test") \
-    .config("spark.hadoop.fs.s3a.secret.key", "test") \
-    .config("spark.hadoop.fs.s3a.path.style.access", "true") \
-    .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
-    .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-    .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.2,com.amazonaws:aws-java-sdk-bundle:1.12.261") \
-    .getOrCreate()
 
 def criar_bucket():
-    """Cria o bucket se não existir"""
+    """Cria o bucket se ainda não existir."""
     try:
-        s3_client.head_bucket(Bucket=BUCKET_NAME)
-        print(f"✅ Bucket '{BUCKET_NAME}' já existe")
-    except:
-        print(f"📦 Criando bucket '{BUCKET_NAME}'...")
-        s3_client.create_bucket(Bucket=BUCKET_NAME)
-        print(f"✅ Bucket criado com sucesso")
+        s3_client.head_bucket(Bucket=S3_BUCKET)
+        print(f"✅ Bucket '{S3_BUCKET}' já existe")
+    except s3_client.exceptions.ClientError:
+        print(f"📦 Criando bucket '{S3_BUCKET}'...")
+        s3_client.create_bucket(Bucket=S3_BUCKET)
+        print("✅ Bucket criado")
 
-def upload_data():
-    """Carrega CSV para S3 Bronze (sem Spark, direto com boto3)"""
-    csv_file = DATA_DIR / 'dados.csv'
 
-    if not csv_file.exists():
-        print(f"❌ Arquivo não encontrado: {csv_file}")
-        return False
+def upload_eventos():
+    """Sobe um CSV por fonte para raw/<fonte>/."""
+    faltando = []
 
-    print(f"📖 Lendo {csv_file.name}...")
-    with open(csv_file, 'rb') as f:
-        content = f.read()
-        s3_client.put_object(
-            Bucket=BUCKET_NAME,
-            Key='bronze/dados.csv',
-            Body=content
-        )
+    for fonte in FONTES:
+        csv_file = DATA_DIR / f"{fonte}.csv"
 
-    print(f"✅ Dados salvos em: s3a://{BUCKET_NAME}/bronze/dados.csv")
+        if not csv_file.exists():
+            print(f"⚠️  Arquivo não encontrado: {csv_file}")
+            faltando.append(fonte)
+            continue
 
-    # Conta linhas
-    lines = content.decode().split('\n')
-    print(f"   Registros: {len([l for l in lines if l.strip()]) - 1}")
-    return True
+        key = f"raw/{fonte}/{fonte}.csv"
+        s3_client.upload_file(str(csv_file), S3_BUCKET, key)
+
+        linhas = sum(1 for _ in csv_file.open()) - 1  # desconta o header
+        print(f"✅ {fonte}.csv ({linhas} eventos) → s3://{S3_BUCKET}/{key}")
+
+    return not faltando
+
 
 def listar_bucket():
-    """Lista o conteúdo do bucket"""
-    print(f"\n📂 Conteúdo do bucket '{BUCKET_NAME}':")
-    response = s3_client.list_objects_v2(Bucket=BUCKET_NAME)
+    """Lista o conteúdo do bucket."""
+    print(f"\n📂 Conteúdo de '{S3_BUCKET}':")
+    conteudo = s3_client.list_objects_v2(Bucket=S3_BUCKET).get('Contents', [])
 
-    if 'Contents' not in response:
+    if not conteudo:
         print("  (vazio)")
         return
 
-    for obj in response['Contents']:
+    for obj in conteudo:
         print(f"  - {obj['Key']}")
 
+
 if __name__ == '__main__':
-    try:
-        print("🚀 Preparando dados para teste (Medallion Architecture)...\n")
-        criar_bucket()
-        if upload_data():
-            listar_bucket()
-            print("\n✅ Pronto! Dados em Bronze. Você pode rodar o pipeline agora.")
-            print(f"   make run-job")
-        else:
-            print("\n❌ Falha ao preparar dados.")
-    finally:
-        spark.stop()
+    print("🚀 Depositando eventos de CDC na camada raw...\n")
+    criar_bucket()
+
+    if upload_eventos():
+        listar_bucket()
+        print("\n✅ Raw populado. Próximo passo: make run-bronze")
+    else:
+        print("\n❌ Faltaram arquivos de origem.")
+        sys.exit(1)
