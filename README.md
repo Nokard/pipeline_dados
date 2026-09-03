@@ -48,8 +48,8 @@ make run-silver    # união dos eventos + estado diário
 make run-gold      # validade SCD2 — dataset final
 ```
 
-O GMV é consultado em `jobs/jupyter_validação/teste_consulta_gmv.ipynb`, que já
-vem com as saídas salvas — dá para ler sem executar nada. Resultado:
+O GMV é consultado em `jobs/query_final/consulta_gmv_segundo_exercicio.ipynb`,
+que já vem com as saídas salvas — dá para ler sem executar nada. Resultado:
 
 ```
 2023-02-28  internacional   2000.00
@@ -65,6 +65,14 @@ vem com as saídas salvas — dá para ler sem executar nada. Resultado:
 > **Atenção:** derrubar o LocalStack apaga o S3. Depois de `make down`, é
 > preciso rodar `make seed` de novo antes do pipeline — o Terraform recria os
 > buckets, mas vazios.
+
+### As camadas no S3
+
+Ao final, o bucket `datalake-teste2` tem as quatro camadas — `raw` com os CSVs
+de origem e `bronze`, `silver` e `gold` com o Parquet particionado por
+`transaction_date`:
+
+![Camadas medallion no S3 do LocalStack](assets/imagens_readme/localstack_aws_simulator.png)
 
 ### Orquestração
 
@@ -82,6 +90,11 @@ bronze → silver_eventos_unificados → silver_purchase_diario → gold_purchas
 O DAG está agendado para **03:00 diariamente**, com `catchup=False` e
 `max_active_runs=1`.
 
+![Execução do DAG no Airflow](assets/imagens_readme/airflow_execution.png)
+
+As quatro tasks concluídas com `success` — a dependência é linear, então uma
+falha no bronze impede que as demais rodem com dado incompleto.
+
 ---
 
 ## Estrutura
@@ -95,24 +108,29 @@ jobs/
   gold_purchase_historico.py      → gold/purchase_historico   ★ dataset final
   config/config.py                → caminhos S3 e SparkSession única
   query_final/                    → notebooks dos dois exercícios
-  jupyter_validação/              → notebook de validação da gold
+  jupyter_validação/              → um notebook por camada, reproduzindo cada job
 airflow/dags/pipeline_medallion.py
 terraform/                        → buckets e prefixos
 scripts/seed_data.py              → simula a origem entregando os CSVs
 ```
 
 ---
+##  Primeiro Exercicio - Entregável
+| O que foi pedido | Onde está |
+|---|---|
+| 2 querys em SQL. | `jobs/query_final/primeiro_exercicio.ipynb` |
 
-## Entregáveis
+
+## Segundo Exercicio - Entregáveis
 
 | O que foi pedido | Onde está |
 |---|---|
 | Script do ETL | `jobs/*.py` + `airflow/dags/pipeline_medallion.py` |
 | DDL do dataset final | schema gravado no Parquet; ver [MODELAGEM.md](MODELAGEM.md#gold) |
-| Exemplo do dataset final populado | `jobs/gold_purchase_historico.py` |
-| Consulta SQL do GMV diário | `jobs/gold_purchase_historico.py/teste_consulta_gmv.ipynb` |
+| Exemplo do dataset final populado | `jobs/query_final/consulta_gmv_segundo_exercicio.ipynb` |
+| Consulta SQL do GMV diário | `jobs/query_final/consulta_gmv_segundo_exercicio.ipynb` |
 | Descrição da tech stack | seção **Stack**, acima |
-| Exercício 1 (SQL) | `jobs/query_final/primeiro_exercicio.ipynb` |
+
 
 ---
 
