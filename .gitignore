@@ -11,6 +11,12 @@ terraform/.terraform.lock.hcl
 *.log
 .idea/
 .vscode/
+.claude/
+
+# artefatos locais do Spark (metastore Derby criado ao rodar do notebook)
+spark-warehouse/
+metastore_db/
+derby.log
 *.egg-info/
 dist/
 build/

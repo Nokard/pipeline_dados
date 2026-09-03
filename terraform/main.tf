@@ -75,3 +75,44 @@ resource "aws_s3_bucket_public_access_block" "medallion" {
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
+
+# ---------------------------------------------------------------------------
+# Exercício 2 — GMV diário por subsidiária
+#
+# Bucket separado do exercício 1: os dois têm schemas incompatíveis para as
+# mesmas tabelas (purchase_id como INT32 lá, INT64 aqui), e compartilhar o
+# mesmo prefixo faz o Spark inferir o schema de um arquivo e falhar no outro.
+# ---------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "gmv" {
+  bucket = var.bucket_name_ex2
+
+  tags = {
+    Name         = var.bucket_name_ex2
+    Environment  = var.environment
+    Architecture = "Medallion"
+    Exercise     = "2"
+  }
+}
+
+# raw = CSV cru dos eventos de CDC; bronze/silver/gold = camadas derivadas
+resource "aws_s3_object" "gmv_prefixes" {
+  for_each = toset(["raw/", "bronze/", "silver/", "gold/"])
+
+  bucket  = aws_s3_bucket.gmv.id
+  key     = each.value
+  content = ""
+
+  tags = {
+    Layer = trimsuffix(each.value, "/")
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "gmv" {
+  bucket = aws_s3_bucket.gmv.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}

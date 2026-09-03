@@ -1,10 +1,24 @@
-FROM apache/spark:latest
+# Spark 3.5.9 empacota Hadoop 3.3.4 (hadoop-client-api/runtime).
+# A versao esta pinada de proposito: com `latest` a imagem pulou para o
+# Spark 4.2.0 / Hadoop 3.5.0 e o hadoop-aws antigo passou a quebrar em
+# `NumberFormatException: For input string: "60s"` -- o S3AFileSystem do
+# hadoop-aws 3.3.x le fs.s3a.threads.keepalivetime com getInt(), mas o
+# core-default.xml do Hadoop 3.4+ passou a declarar esse valor como duracao.
+FROM apache/spark:3.5.9
 
-# Baixa e adiciona hadoop-aws jars ao Spark
-RUN mkdir -p /opt/spark/jars-extra && \
-    cd /opt/spark/jars-extra && \
-    curl -L -o hadoop-aws-3.3.2.jar https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.2/hadoop-aws-3.3.2.jar && \
-    curl -L -o aws-java-sdk-bundle-1.12.261.jar https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.261/aws-java-sdk-bundle-1.12.261.jar && \
-    cp *.jar /opt/spark/jars/
+# hadoop-aws PRECISA casar com o Hadoop empacotado no Spark (3.3.4).
+ARG HADOOP_AWS_VERSION=3.3.4
+ARG AWS_SDK_VERSION=1.12.262
+ARG MAVEN=https://repo1.maven.org/maven2
 
-ENV SPARK_EXTRA_CLASSPATH=/opt/spark/jars/*
+USER root
+
+RUN set -eux; \
+    rm -f /opt/spark/jars/hadoop-aws-*.jar /opt/spark/jars/aws-java-sdk-*.jar; \
+    curl -fsSL -o /opt/spark/jars/hadoop-aws-${HADOOP_AWS_VERSION}.jar \
+      ${MAVEN}/org/apache/hadoop/hadoop-aws/${HADOOP_AWS_VERSION}/hadoop-aws-${HADOOP_AWS_VERSION}.jar; \
+    curl -fsSL -o /opt/spark/jars/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar \
+      ${MAVEN}/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar; \
+    chown spark:spark /opt/spark/jars/hadoop-aws-*.jar /opt/spark/jars/aws-java-sdk-*.jar
+
+USER spark

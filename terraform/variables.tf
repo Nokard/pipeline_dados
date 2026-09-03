@@ -30,6 +30,12 @@ variable "bucket_name" {
   default     = "dados-teste"
 }
 
+variable "bucket_name_ex2" {
+  description = "S3 bucket do exercício 2 (GMV diário por subsidiária)"
+  type        = string
+  default     = "datalake-teste2"
+}
+
 variable "environment" {
   description = "Environment name"
   type        = string
